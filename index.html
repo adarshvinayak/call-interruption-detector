@@ -8,6 +8,48 @@
     <link rel="stylesheet" href="shadcn.css">
 </head>
 <body>
+    <!-- VAPI Call Recordings Collapsible Section -->
+    <div class="shadcn-container shadcn-card" style="margin-bottom: 2rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="toggleVapiSection()">
+            <h2 style="font-size: 1.25rem; font-weight: 600; color: hsl(var(--foreground)); margin: 0;">VAPI Call Recordings</h2>
+            <span id="vapiCollapseIcon" style="font-size: 1.5rem;">&#9660;</span>
+        </div>
+        <div id="vapiSection" style="margin-top: 1rem;">
+            <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                <div>
+                    <label for="vapiStartDate" style="font-size: 0.9rem; color: hsl(var(--muted-foreground));">Start Date</label>
+                    <input type="date" id="vapiStartDate" class="shadcn-input" />
+                </div>
+                <div>
+                    <label for="vapiEndDate" style="font-size: 0.9rem; color: hsl(var(--muted-foreground));">End Date</label>
+                    <input type="date" id="vapiEndDate" class="shadcn-input" />
+                </div>
+                <button id="fetchVapiCallsBtn" class="shadcn-button shadcn-button-primary">Fetch Calls</button>
+                <button id="exportVapiCsvBtn" class="shadcn-button shadcn-button-secondary">Export to CSV</button>
+            </div>
+            <div id="vapiLoading" class="hidden" style="margin: 1rem 0; color: hsl(var(--muted-foreground));">Loading calls...</div>
+            <div id="vapiError" class="hidden" style="margin: 1rem 0; color: hsl(var(--destructive));"></div>
+            <div style="overflow-x: auto; margin-top: 1rem;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: hsl(var(--muted)); border-bottom: 1px solid hsl(var(--border));">
+                            <th style="padding: 0.5rem; text-align: left;">Call ID</th>
+                            <th style="padding: 0.5rem; text-align: left;">Date</th>
+                            <th style="padding: 0.5rem; text-align: left;">Status</th>
+                            <th style="padding: 0.5rem; text-align: left;">Stereo Recording</th>
+                            <th style="padding: 0.5rem; text-align: left;">Mono Recording</th>
+                            <th style="padding: 0.5rem; text-align: left;">Duration (s)</th>
+                            <th style="padding: 0.5rem; text-align: left;">Customer Number</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vapiCallsTable" style="background-color: hsl(var(--card));">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <!-- End VAPI Section -->
     <div class="shadcn-container shadcn-card">
         <h1 style="color: hsl(var(--foreground)); font-size: 1.875rem; font-weight: 600; line-height: 2.25rem; margin-bottom: 1rem;">Call Interruption Detector</h1>
         <p style="color: hsl(var(--muted-foreground)); margin-bottom: 1.5rem;">Upload a stereo audio file to detect interruptions between speakers</p>

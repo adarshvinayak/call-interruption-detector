@@ -21,6 +21,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const detectionLog = document.getElementById('detectionLog');
     const audioInfoContent = document.getElementById('audioInfoContent');
     
+    // VAPI Call Recordings Section Logic
+    const VAPI_API_KEY = 'e8a894ac-dada-487e-a31b-076d93a8882d';
+    const vapiSection = document.getElementById('vapiSection');
+    const vapiCollapseIcon = document.getElementById('vapiCollapseIcon');
+    const fetchVapiCallsBtn = document.getElementById('fetchVapiCallsBtn');
+    const exportVapiCsvBtn = document.getElementById('exportVapiCsvBtn');
+    const vapiCallsTable = document.getElementById('vapiCallsTable');
+    const vapiLoading = document.getElementById('vapiLoading');
+    const vapiError = document.getElementById('vapiError');
+    
+    let vapiCallsCache = [];
+    
     // WaveSurfer instance for audio visualization
     let wavesurfer = null;
     // Audio context and buffer for processing
@@ -646,4 +658,133 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize the application
     init();
+
+    // VAPI Call Recordings Section Logic
+    function toggleVapiSection() {
+        if (!vapiSection) return;
+        vapiSection.classList.toggle('hidden');
+        if (vapiCollapseIcon) {
+            vapiCollapseIcon.innerHTML = vapiSection.classList.contains('hidden') ? '&#9654;' : '&#9660;';
+        }
+    }
+
+    if (fetchVapiCallsBtn) {
+        fetchVapiCallsBtn.addEventListener('click', fetchVapiCalls);
+    }
+    if (exportVapiCsvBtn) {
+        exportVapiCsvBtn.addEventListener('click', exportVapiCallsToCsv);
+    }
+
+    async function fetchVapiCalls() {
+        if (vapiLoading) vapiLoading.classList.remove('hidden');
+        if (vapiError) vapiError.classList.add('hidden');
+        vapiCallsTable.innerHTML = '';
+        vapiCallsCache = [];
+        try {
+            // Remove date filters, as VAPI does not support them
+            // Fetch the list of calls (IDs only)
+            const url = `https://api.vapi.ai/call`;
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${VAPI_API_KEY}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (!response.ok) throw new Error('Failed to fetch calls');
+            let data = await response.json();
+            let callList = Array.isArray(data) ? data : (data.calls || []);
+            if (!callList.length) {
+                renderVapiCallsTable([]);
+                return;
+            }
+            // For each call, fetch full details
+            let detailedCalls = [];
+            for (let call of callList) {
+                let callId = call.id || call;
+                try {
+                    const detailResp = await fetch(`https://api.vapi.ai/call/${callId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${VAPI_API_KEY}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    if (detailResp.ok) {
+                        let detail = await detailResp.json();
+                        detailedCalls.push(detail);
+                    }
+                } catch (e) {
+                    // skip failed call
+                }
+            }
+            vapiCallsCache = detailedCalls;
+            renderVapiCallsTable(vapiCallsCache);
+        } catch (err) {
+            if (vapiError) {
+                vapiError.textContent = err.message || 'Error fetching calls.';
+                vapiError.classList.remove('hidden');
+            }
+        } finally {
+            if (vapiLoading) vapiLoading.classList.add('hidden');
+        }
+    }
+
+    function renderVapiCallsTable(calls) {
+        vapiCallsTable.innerHTML = '';
+        if (!calls.length) {
+            vapiCallsTable.innerHTML = '<tr><td colspan="7" style="text-align:center; color: hsl(var(--muted-foreground));">No calls found.</td></tr>';
+            return;
+        }
+        for (const call of calls) {
+            // Try to get recording URLs from artifact.recording, artifact.recordingUrl, artifact.stereoRecordingUrl, etc.
+            let stereoUrl = '';
+            let monoUrl = '';
+            if (call.artifact && call.artifact.recording) {
+                stereoUrl = call.artifact.recording.stereoUrl || '';
+                if (call.artifact.recording.mono && call.artifact.recording.mono.combinedUrl) {
+                    monoUrl = call.artifact.recording.mono.combinedUrl;
+                }
+            }
+            // Fallbacks
+            if (!stereoUrl && call.artifact && call.artifact.stereoRecordingUrl) stereoUrl = call.artifact.stereoRecordingUrl;
+            if (!monoUrl && call.artifact && call.artifact.recordingUrl) monoUrl = call.artifact.recordingUrl;
+            vapiCallsTable.innerHTML += `
+                <tr>
+                    <td style="padding: 0.5rem;">${call.id}</td>
+                    <td style="padding: 0.5rem;">${call.createdAt ? new Date(call.createdAt).toLocaleString() : ''}</td>
+                    <td style="padding: 0.5rem;">${call.status || ''}</td>
+                    <td style="padding: 0.5rem;">${stereoUrl ? `<a href="${stereoUrl}" download target="_blank">Download</a>` : ''}</td>
+                    <td style="padding: 0.5rem;">${monoUrl ? `<a href="${monoUrl}" download target="_blank">Download</a>` : ''}</td>
+                    <td style="padding: 0.5rem;">${call.duration || ''}</td>
+                    <td style="padding: 0.5rem;">${call.customer?.number || ''}</td>
+                </tr>
+            `;
+        }
+    }
+
+    function exportVapiCallsToCsv() {
+        if (!vapiCallsCache.length) return;
+        const headers = ['call_id', 'date', 'status', 'stereo_recording_url', 'mono_recording_url', 'duration', 'customer_number'];
+        const rows = vapiCallsCache.map(call => [
+            call.id,
+            call.createdAt,
+            call.status,
+            call.artifact?.recording?.stereo || '',
+            call.artifact?.recording?.mono || '',
+            call.duration || '',
+            call.customer?.number || ''
+        ]);
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(','))
+        ].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'call_recordings.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
 });
