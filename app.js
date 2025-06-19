@@ -680,13 +680,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return input ? input.value.trim() : '';
     }
 
-    // Update fetchVapiCalls and all VAPI requests to use getVapiApiKey()
+    // Update fetchVapiCalls to support Call ID filter and result limit
     async function fetchVapiCalls() {
         if (vapiLoading) vapiLoading.classList.remove('hidden');
         if (vapiError) vapiError.classList.add('hidden');
         vapiCallsTable.innerHTML = '';
         vapiCallsCache = [];
         const apiKey = getVapiApiKey();
+        const callIdInput = document.getElementById('vapiCallIdInput');
+        const limitSelect = document.getElementById('vapiLimitSelect');
+        const callId = callIdInput ? callIdInput.value.trim() : '';
+        const limitValue = limitSelect ? limitSelect.value : 'all';
         if (!apiKey) {
             if (vapiLoading) vapiLoading.classList.add('hidden');
             if (vapiError) {
@@ -696,43 +700,61 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         try {
-            const url = `https://api.vapi.ai/call`;
-            const response = await fetch(url, {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-            if (!response.ok) throw new Error('Failed to fetch call list');
-            const callList = await response.json();
             let detailedCalls = [];
-            for (let call of callList) {
-                let callId = call.id || call;
-                try {
+            if (callId) {
+                // Fetch only the specific call by ID
+                const detailResp = await fetch(`https://api.vapi.ai/call/${callId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                if (detailResp.ok) {
+                    const callDetail = await detailResp.json();
+                    detailedCalls = [callDetail];
+                } else {
+                    throw new Error('Call not found');
+                }
+            } else {
+                // Fetch the list of calls (IDs only)
+                const url = `https://api.vapi.ai/call`;
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                if (!response.ok) throw new Error('Failed to fetch call list');
+                const callList = await response.json();
+                let callsToFetch = callList;
+                if (limitValue !== 'all') {
+                    const n = parseInt(limitValue, 10);
+                    callsToFetch = callList.slice(0, n);
+                }
+                for (let call of callsToFetch) {
+                    const callId = call.id || call;
                     const detailResp = await fetch(`https://api.vapi.ai/call/${callId}`, {
                         headers: {
                             'Authorization': `Bearer ${apiKey}`,
-                            'Content-Type': 'application/json'
-                        }
+                            'Content-Type': 'application/json',
+                        },
                     });
                     if (detailResp.ok) {
-                        let detail = await detailResp.json();
-                        detailedCalls.push(detail);
+                        const callDetail = await detailResp.json();
+                        detailedCalls.push(callDetail);
                     }
-                } catch (e) {
-                    // skip failed call
                 }
             }
             vapiCallsCache = detailedCalls;
-            renderVapiCallsTable(vapiCallsCache);
+            renderVapiCallsTable(detailedCalls);
         } catch (err) {
+            if (vapiLoading) vapiLoading.classList.add('hidden');
             if (vapiError) {
-                vapiError.textContent = err.message || 'Error fetching calls.';
+                vapiError.textContent = err.message || 'Failed to fetch calls.';
                 vapiError.classList.remove('hidden');
             }
-        } finally {
-            if (vapiLoading) vapiLoading.classList.add('hidden');
         }
+        if (vapiLoading) vapiLoading.classList.add('hidden');
     }
 
     function renderVapiCallsTable(calls) {
