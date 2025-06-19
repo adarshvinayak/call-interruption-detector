@@ -764,15 +764,28 @@ document.addEventListener('DOMContentLoaded', function() {
     function exportVapiCallsToCsv() {
         if (!vapiCallsCache.length) return;
         const headers = ['call_id', 'date', 'status', 'stereo_recording_url', 'mono_recording_url', 'duration', 'customer_number'];
-        const rows = vapiCallsCache.map(call => [
-            call.id,
-            call.createdAt,
-            call.status,
-            call.artifact?.recording?.stereo || '',
-            call.artifact?.recording?.mono || '',
-            call.duration || '',
-            call.customer?.number || ''
-        ]);
+        const rows = vapiCallsCache.map(call => {
+            // Use the same logic as renderVapiCallsTable
+            let stereoUrl = '';
+            let monoUrl = '';
+            if (call.artifact && call.artifact.recording) {
+                stereoUrl = call.artifact.recording.stereoUrl || '';
+                if (call.artifact.recording.mono && call.artifact.recording.mono.combinedUrl) {
+                    monoUrl = call.artifact.recording.mono.combinedUrl;
+                }
+            }
+            if (!stereoUrl && call.artifact && call.artifact.stereoRecordingUrl) stereoUrl = call.artifact.stereoRecordingUrl;
+            if (!monoUrl && call.artifact && call.artifact.recordingUrl) monoUrl = call.artifact.recordingUrl;
+            return [
+                call.id,
+                call.createdAt,
+                call.status,
+                stereoUrl,
+                monoUrl,
+                call.duration || '',
+                call.customer?.number || ''
+            ];
+        });
         const csvContent = [
             headers.join(','),
             ...rows.map(row => row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(','))
