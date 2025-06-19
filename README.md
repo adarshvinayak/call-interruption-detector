@@ -49,7 +49,6 @@ The application uses the following technologies:
 
 ## Future Improvements
 
-- Adjustable detection parameters (threshold, minimum duration)
 - Export interruption data as CSV or JSON
 - Batch processing of multiple files
 - More detailed audio analysis and statistics
