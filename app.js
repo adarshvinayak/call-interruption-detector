@@ -22,7 +22,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const audioInfoContent = document.getElementById('audioInfoContent');
     
     // VAPI Call Recordings Section Logic
-    const VAPI_API_KEY = 'e8a894ac-dada-487e-a31b-076d93a8882d';
     const vapiSection = document.getElementById('vapiSection');
     const vapiCollapseIcon = document.getElementById('vapiCollapseIcon');
     const fetchVapiCallsBtn = document.getElementById('fetchVapiCallsBtn');
@@ -675,36 +674,44 @@ document.addEventListener('DOMContentLoaded', function() {
         exportVapiCsvBtn.addEventListener('click', exportVapiCallsToCsv);
     }
 
+    // Add function to get API key from input
+    function getVapiApiKey() {
+        const input = document.getElementById('vapiApiKeyInput');
+        return input ? input.value.trim() : '';
+    }
+
+    // Update fetchVapiCalls and all VAPI requests to use getVapiApiKey()
     async function fetchVapiCalls() {
         if (vapiLoading) vapiLoading.classList.remove('hidden');
         if (vapiError) vapiError.classList.add('hidden');
         vapiCallsTable.innerHTML = '';
         vapiCallsCache = [];
+        const apiKey = getVapiApiKey();
+        if (!apiKey) {
+            if (vapiLoading) vapiLoading.classList.add('hidden');
+            if (vapiError) {
+                vapiError.textContent = 'Please enter your VAPI API key.';
+                vapiError.classList.remove('hidden');
+            }
+            return;
+        }
         try {
-            // Remove date filters, as VAPI does not support them
-            // Fetch the list of calls (IDs only)
             const url = `https://api.vapi.ai/call`;
             const response = await fetch(url, {
                 headers: {
-                    'Authorization': `Bearer ${VAPI_API_KEY}`,
-                    'Content-Type': 'application/json'
-                }
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                },
             });
-            if (!response.ok) throw new Error('Failed to fetch calls');
-            let data = await response.json();
-            let callList = Array.isArray(data) ? data : (data.calls || []);
-            if (!callList.length) {
-                renderVapiCallsTable([]);
-                return;
-            }
-            // For each call, fetch full details
+            if (!response.ok) throw new Error('Failed to fetch call list');
+            const callList = await response.json();
             let detailedCalls = [];
             for (let call of callList) {
                 let callId = call.id || call;
                 try {
                     const detailResp = await fetch(`https://api.vapi.ai/call/${callId}`, {
                         headers: {
-                            'Authorization': `Bearer ${VAPI_API_KEY}`,
+                            'Authorization': `Bearer ${apiKey}`,
                             'Content-Type': 'application/json'
                         }
                     });
